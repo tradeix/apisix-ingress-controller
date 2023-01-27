@@ -32,7 +32,7 @@ import (
 
 func (t *translator) TranslateService(namespace, name, subset string, port int32) (*apisixv1.Upstream, error) {
 	endpoint, err := t.EndpointLister.GetEndpoint(namespace, name)
-	if err != nil {
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return nil, &TranslateError{
 			Field:  "endpoints",
 			Reason: err.Error(),
@@ -76,14 +76,18 @@ func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, sub
 			}
 		}
 	}
+
+	var nodes apisixv1.UpstreamNodes
 	// Filter nodes by subset.
-	nodes, err := t.TranslateEndpoint(*ep, port, labels)
-	if err != nil {
-		return nil, err
-	}
-	if au == nil || au.V2().Spec == nil {
-		ups.Nodes = nodes
-		return ups, nil
+	if ep != nil {
+		nodes, err = t.TranslateEndpoint(*ep, port, labels)
+		if err != nil {
+			return nil, err
+		}
+		if au == nil || au.V2().Spec == nil {
+			ups.Nodes = nodes
+			return ups, nil
+		}
 	}
 
 	upsCfg := &au.V2().Spec.ApisixUpstreamConfig
